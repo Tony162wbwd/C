@@ -1,8 +1,0 @@
-- name: Subir snake.svg a la rama output
-  uses: crazy-max/ghaction-github-pages@v3.1.0
-  with:
-    target_branch: output
-    build_dir: dist
-    keep_history: true # Mantiene el historial de la rama, creándola si no existe
-  env:
-    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
