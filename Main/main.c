@@ -1,12 +1,162 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <pthread.h>
+#include <unistd.h>
+#include <time.h>
+#include <semaphore.h>
+#include <sys/types.h>
+#include <sys/sysinfo.h>
 
-int main() {
-    char *str = "Hello, World!";
-    char *copy = malloc(strlen(str) + 1); // +1 for the null terminator
-    if (copy == NULL) {
-        fprintf(stderr, "Memory allcoation failed\n");
-        return 1;
-    }
+#define MAX_PROCESSES 5000
+#define MEMORY_SIZE 16777216
+#define MAX_FILES 500
+#define FILE_SIZE 8192
+#define MAX_DEVICES 20
+#define MAX_THREADS 16
+#define MAX_PRIORITY 10
+#define TIME_QUANTUM 2
+
+// Estructura para un proceso
+typedef struct
+{
+	int pid;
+	char name[64];
+	int priority;
+	int memory_start;
+	int memory_size;
+	bool active;
+	pthread_t thread;
+	int cpu_usage;
+	time_t start_time;
+	int execution_time;
+} Process;
+
+// Estructura para un archivo
+typedef struct
+{
+	char name[64];
+	char data[FILE_SIZE];
+	bool used;
+} File;
+
+// Estructura para un dispositivo
+typedef struct
+{
+	char name[32];
+	bool in_use;
+} Device;
+
+Process process_table[MAX_PROCESSES];
+uint8_t memory[MEMORY_SIZE];
+File file_system[MAX_FILES];
+Device devices[MAX_DEVICES];
+sem_t memory_lock, file_lock, device_lock, process_lock;
+int process_count = 0;
+
+void *process_execution(void *arg)
+{
+	Process *proc = (Process *)arg;
+	printf("[KERNEL] Proceso PID=%d (%s) ejecutando con prioridad %d...\n", proc->pid, proc->name, proc->priority);
+
+	for (int i = 0; i < proc->execution_time; i += TIME_QUANTUM)
+		{
+			sleep(TIME_QUANTUM);
+			printf("[KERNEL] Proceso PID=%d ejecutando...\n", proc->pid);
+		}
+
+	printf("[KERNEL] Proceso PID=%d (%s) finalizado.\n", proc->pid, proc->name);
+	proc->active = false;
+	return NULL;
+}
+
+void create_file(const char *filename)
+{
+	sem_wait(&file_lock);
+	for (int i = 0; i < MAX_FILES; i++)
+		{
+			if (!file_system[i].used)
+				{
+					strncpy(file_system[i].name, filename, sizeof(file_system[i].name));
+					file_system[i].used = true;
+					printf("[KERNEL] Archivo '%s' creado.\n", filename);
+					sem_post(&file_lock);
+					return;
+				}
+		}
+	printf("[ERROR] No se pudo crear el archivo: almacenamiento lleno.\n");
+	sem_post(&file_lock);
+}
+
+void list_files()
+{
+	printf("[KERNEL] Archivos en el sistema:\n");
+	for (int i = 0; i < MAX_FILES; i++)
+		{
+			if (file_system[i].used)
+				{
+					printf("Archivo: %s\n", file_system[i].name);
+				}
+		}
+}
+
+void list_devices()
+{
+	printf("[KERNEL] Dispositivos en el sistema:\n");
+	for (int i = 0; i < MAX_DEVICES; i++)
+		{
+			printf("Dispositivo: %s - %s\n", devices[i].name, devices[i].in_use ? "En uso" : "Disponible");
+		}
+}
+
+void system_status()
+{
+	struct sysinfo sys_info;
+	sysinfo(&sys_info);
+	printf("[KERNEL] Estado del sistema:\n");
+	printf(" Uptime: %ld segundos\n", sys_info.uptime);
+	printf(" Memoria libre: %ld bytes\n", sys_info.freeram);
+	printf(" Numero de procesos: %d\n", process_count);
+}
+
+void init_kernel()
+{
+	memset(process_table, 0, sizeof(process_table));
+	memset(memory, 0, sizeof(memory));
+	memset(file_system, 0, sizeof(file_system));
+	memset(devices, 0, sizeof(devices));
+	sem_init(&memory_lock, 0, 1);
+	sem_init(&file_lock, 0, 1);
+	sem_init(&device_lock, 0, 1);
+	sem_init(&process_lock, 0, 1);
+	printf("[KERNEL] Sistema operativo inicializado con %d bytes de memoria y %d dispositivos.\n", MEMORY_SIZE, MAX_DEVICES);
+}
+
+void command_interface()
+{
+	char command[100];
+	while (true)
+		{
+			printf("[KERNEL] > ");
+			scanf("%s", command);
+			if (strcmp(command, "exit") == 0) break;
+			else if (strcmp(command, "status") == 0) system_status();
+			else if (strcmp(command, "files") == 0) list_files();
+			else if (strcmp(command, "devices") == 0) list_devices();
+			else printf("[ERROR] Comando no reconocido.\n");
+		}
+}
+
+int main()
+{
+	srand(time(NULL));
+	init_kernel();
+	create_file("config.sys");
+	create_file("datos.txt");
+	list_files();
+	system_status();
+	command_interface();
+	return 0;
 }
