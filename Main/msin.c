@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 // Este programa calcula el uso de memoria de diferentes tipos de datos en C
 // y muestra información adicional sobre el sistema operativo y la arquitectura
 // en la que se ejecuta, además de información avanzada del sistema.
